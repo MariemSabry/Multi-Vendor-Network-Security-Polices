@@ -1,0 +1,183 @@
+R4
+----
+hostname R4
+enable secret cisco
+banner motd # Hello #
+service password-encryption
+username admin4 secret admin4
+no ip domain-lookup
+no cdp run
+ip domain-name cisco.com
+crypto key generate rsa general-keys modulus 1024
+
+line con 0
+password cisco
+logging synchronous
+exec-timeout 3 50
+login
+
+line vty 0 4
+password cisco
+exec-timeout 3 50
+transport input ssh
+login local
+
+
+int g0/0/0
+ ip add 172.16.100.234 255.255.255.252
+ no sh
+
+int g0/0/1
+ ip add 172.16.100.17 255.255.255.240
+ no sh
+
+ 
+-------------
+Radius server
+-------------
+conf t
+
+aaa new-model
+aaa authentication login default group radius local
+username admin secret admin12345
+radius server Raduis
+ add ipv4 172.16.100.2 auth-port 1812 
+ key radiuspass
+
+line console 0
+ login authentication default
+ exit
+
+--------
+syslog
+-------
+
+ logging 172.16.100.4
+ logging trap debugging 
+ logging on
+
+-----
+NTP
+-----
+ntp server 172.16.100.4
+service timestamps log datetime msec
+
+-----
+IPS
+-----
+conf t
+license boot module c1900 technology-package securityk9
+y
+end
+wr
+reload
+
+en
+show version
+
+en
+mkdir ipsdir
+
+conf t
+ip ips config location flash:ipsdir
+ip ips name iosips
+ip ips notify log
+end
+
+conf t
+service timestamps log datetime msec
+logging host 172.16.100.4
+
+conf t
+ip ips signature-category
+  category all
+     retired true
+     exit
+  category ios_ips basic
+     retired false
+     exit
+   exit
+
+interface g0/0/1
+  ip ips iosips out
+  ex
+conf t
+ip ips signature-definition
+  signature 2004 0
+    status
+      retired false
+      enabled true
+      exit
+
+     engine
+        event-action produce-alert
+        event-action deny-packet-inline
+	exit
+     exit
+   exit
+entre
+
+----------
+Role Based
+-----------
+conf t
+parser view admin1
+  secret admin1pass
+  commands exec include all show
+  commands exec include all config terminal
+  commands exec include all debug
+  end
+
+conf t
+ parser view admin2
+  secret admin2pass
+  commands exec include all show
+  end
+
+conf t
+parser view admin3
+ secret admin3pass
+ commands exec include show version
+ commands exec include show interfaces
+ commands exec include show ip interface brief
+ commands exec include show parser view
+ end
+
+-------------
+#ospf authen#
+-------------
+conf t
+int g0/0/0
+ ip ospf message-digest-key 1 md5 MD5pa55
+---------
+#Routing#
+---------
+router ospf 10
+router-id 4.4.4.4
+network 172.16.100.232 0.0.0.3 area 0
+network 172.16.100.16  0.0.0.15 area 0
+area 0 authentication message-digest
+
+===============================
+sw8
+----
+hostname sw8
+banner motd # Hello #
+enable secret cisco
+service password-encryption
+
+line con 0
+ password cisco
+ exec-timeout 3 50
+ logging synchronous
+ login
+
+interface g0/1
+switchport mode trunk
+no shutdown
+
+logging 172.16.100.4
+
+ntp server 172.16.100.4
+service timestamps log datetime msec
+ exit

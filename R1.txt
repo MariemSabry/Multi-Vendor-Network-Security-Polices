@@ -1,0 +1,270 @@
+R1
+---
+hostname R1
+enable secret cisco
+banner motd # Hello #
+service password-encryption
+username admin1 secret admin1
+no ip domain-lookup
+no cdp run
+ip domain-name cisco.com
+crypto key generate rsa general-keys modulus 1024
+
+line con 0
+password cisco
+logging synchronous
+exec-timeout 3 50
+login
+
+line vty 0 4
+password cisco
+exec-timeout 3 50
+transport input ssh
+login local
+
+
+int g0/0/1
+ ip add 172.16.100.161 255.255.255.240
+ no sh
+
+int s0/1/0
+ ip add 172.16.100.226 255.255.255.252
+ no sh  
+
+int g0/0/0
+ no sh 
+
+-------------
+Radius server
+-------------
+conf t
+aaa new-model
+aaa authentication login default group radius local
+
+username admin secret admin12345
+radius server Raduis
+ add ipv4 172.16.100.2 auth-port 1812
+ key radiuspass
+
+line console 0
+ login authentication default
+ exit
+
+--------
+syslog
+-------
+
+ logging 172.16.100.4
+ logging trap debugging 
+ logging on
+
+-----
+NTP
+-----
+ntp server 172.16.100.4
+service timestamps log datetime msec
+
+-------------
+#ospf authen#
+-------------
+conf t
+int s0/1/0
+ ipospf message-digest-key 1 md5 cisco123
+int g0/0/1
+ ip ospf message-digest-key 1 md5 cisco123
+
+
+---------
+#Routing#
+---------
+router ospf 10
+router-id 1.1.1.1
+network 172.16.100.240 0.0.0.3 area 0
+network 172.16.100.224 0.0.0.3 area 0
+network 172.16.100.32 0.0.0.15 area 0
+network 172.16.100.64 0.0.0.15 area 0
+network 172.16.100.48 0.0.0.15 area 0
+
+area 0 authentication message-digest
+
+
+
+dhcp
+----
+int g0/0/0
+no sh
+
+interface G0/0/0.10
+ip address 172.16.100.33  255.255.255.240
+encapsulation dot1Q 10
+
+interface G0/0/0.20
+ip address 172.16.100.65  255.255.255.240
+encapsulation dot1Q 20
+
+interface G0/0/0.99
+ip address 172.16.100.49  255.255.255.240
+encapsulation dot1Q 99 Native
+
+
+ip dhcp pool Vlan10
+ network 172.16.100.32 255.255.255.240
+ default-router 192.168.100.33
+
+ip dhcp pool Vlan20
+ network 172.16.100.64 255.255.255.240
+ default-router 172.16.100.65
+
+ip dhcp pool Vlan99
+ network 172.16.100.48 255.255.255.240
+ default-router 172.16.100.49
+
+=================================
+
+multi-layer-sw
+---------------
+hostname L3-Sw
+banner motd # Hello #
+enable secret cisco
+service password-encryption
+
+line con 0
+ password cisco
+ exec-timeout 3 50
+ logging synchronous
+ login 
+
+logging 172.16.100.4
+
+ntp server 172.16.100.4
+service timestamps log datetime msec
+ exit
+
+
+vlan 10
+ name HR
+vlan 20
+ name Security
+vlan 99
+ name management
+vlan 30 
+  name isolated
+ ex
+
+spanning-tree vlan 30 priority 20480
+
+int f0/24
+ip dhcp snooping trust 
+ip arp inspection trust 
+
+int range g0/1-2
+ip dhcp snooping limit rate 6
+ip dhcp snooping vlan 10,20,30
+ip arp inspection vlan 10,20,30
+ip arp inspection validate src-mac dst-mac ip 
+#ip verfiy source
+
+
+int f0/24
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport nonegotiate
+ switchport trunk native vlan 99
+
+int range g0/1-2
+ switchport mode trunk
+ switchport nonegotiate
+ switchport trunk native vlan 99
+ ex
+
+int ran f0/1-23
+ switchport access vlan 30
+ shut
+
+
+sw0
+---
+int f0/1
+switchport mode access
+switchport access vlan 10
+ex
+
+sw1
+----
+hostname sw1
+vlan 10
+ name HR
+vlan 20
+ name Security
+vlan 99
+ name management
+ ex
+int f0/1
+switchport mode access
+switchport access vlan 20
+ex
+
+
+sw9
+---
+hostname sw9
+vlan 10
+ name HR
+vlan 20
+ name Security
+vlan 99
+ name management
+ ex
+int f0/1
+switchport mode access
+switchport access vlan 10
+ex
+
+
+sw10
+----
+hostname sw10
+vlan 10
+ name HR
+vlan 20
+ name Security
+vlan 99
+ name management
+ ex
+
+int f0/1
+switchport mode access
+switchport access vlan 20
+ex
+
+
+sw2
+----
+hostname sw2
+vlan 10
+ name HR
+vlan 20
+ name Security
+vlan 99
+ name management
+ ex
+
+spanning-tree vlan 10 root primary
+spanning-tree vlan 20 root secondary
+spanning-tree vlan 30 priority 24576
+
+
+sw11
+-----
+hostname sw11
+vlan 10
+ name HR
+vlan 20
+ name Security
+vlan 99
+ name management
+ ex
+do wr
+
+spanning-tree vlan 20 root primary
+spanning-tree vlan 10 root secondary

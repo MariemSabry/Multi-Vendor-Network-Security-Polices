@@ -1,0 +1,15 @@
+
+sw0 , sw1
+------------
+int range f0/1-24
+ spanning-tree portfast 
+ spanning-tree bpduguard enable
+
+
+sw9,sw11
+------------
+int range f0/1-24 
+ spanning-tree portfast 
+ spanning-tree bpduguard enable
+
+

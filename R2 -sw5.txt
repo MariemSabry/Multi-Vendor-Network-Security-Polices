@@ -1,0 +1,171 @@
+R2
+---
+hostname R2
+enable secret cisco
+banner motd # Hello #
+service password-encryption
+username admin2 secret admin2
+no ip domain-lookup
+no cdp run
+ip domain-name cisco.com
+crypto key generate rsa general-keys modulus 1024
+
+line con 0
+password cisco
+logging synchronous
+exec-timeout 3 50
+login
+
+line vty 0 4
+password cisco
+exec-timeout 3 50
+transport input ssh
+login local
+
+
+int g0/0/0
+ ip add 172.16.100.1 255.255.255.240
+ no sh
+
+int g0/0/1
+ ip add 172.16.100.233 255.255.255.252
+ no sh
+
+int s0/1/0
+ ip add 172.16.100.225 255.255.255.252
+ no sh  
+
+int s0/1/1
+ ip add 172.16.100.229 255.255.255.252
+ no sh 
+
+interface Lo2
+ ip address 1.1.1.1  255.255.255.255
+ ex
+-------------
+Radius server
+-------------
+conf t
+aaa new-model
+aaa authentication login default group radius local
+
+username admin secret admin12345
+radius server Raduis
+ add ipv4 172.16.100.2 auth-port 1812 
+ key radiuspass
+
+line console 0
+ login authentication default
+ exit
+
+--------
+syslog
+-------
+
+ logging 172.16.100.4
+ logging trap debugging 
+ logging on
+
+-----
+NTP
+-----
+ntp server 172.16.100.4
+service timestamps log datetime msec
+
+-------------
+#ospf authen#
+-------------
+conf t
+int s0/1/0
+ ip ospf message-digest-key 1 md5 MD5pa55
+int s0/1/1
+ ip ospf message-digest-key 1 md5 MD5pa55
+int g0/0/1
+ ip ospf message-digest-key 1 md5 MD5pa55
+
+
+---------
+#Routing#
+---------
+ip route 0.0.0.0 0.0.0.0 Lo2
+
+router ospf 10
+router-id 2.2.2.2
+network 172.16.100.232 0.0.0.3 area 0
+network 172.16.100.224 0.0.0.3 area 0
+network 172.16.100.228 0.0.0.3 area 0
+network 172.16.100.0   0.0.0.15 area 0
+default-information originate
+area 0 authentication message-digest
+
+=================================
+
+sw5
+----
+hostname sw5
+banner motd # Hello #
+enable secret cisco
+service password-encryption
+
+line con 0
+ password cisco
+ exec-timeout 3 50
+ logging synchronous
+ login 
+
+
+logging 172.16.100.4
+
+ntp server 172.16.100.4
+service timestamps log datetime msec
+ exit
+
+-------
+802.1x
+-------
+int vlan 1
+ no shut
+ ip address 172.16.100.10 255.255.255.240
+ ip default-gateway 172.16.100.1
+
+int range f0/1-24
+ switchport mode access
+ switchport access vlan 1
+ ex
+
+client name : sw-5
+client ip : 172.16.100.10
+secret : cisco
+raduis 
+port :1812
+
+username : ROOT
+pass : Raduispass
+
+
+pc-6 
+
+enable 802.1x 
+username : ROOT
+pass :Raduispass
+
+ 
+
+conf t
+aaa new-model
+aaa authentication dot1x default group radius
+dot1x system-auth-control
+
+radius-server host 172.16.100.2 auth-port 1812  key cisco
+
+interface f0/1
+ switchport mode access
+ authentication port-control auto
+ dot1x pae authenticator
+ end
+
+show dot1x all statistics
+
+
+
+

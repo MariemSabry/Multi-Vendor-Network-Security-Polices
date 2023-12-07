@@ -1,0 +1,244 @@
+R3
+---
+hostname R3
+enable secret cisco
+banner motd # Hello #
+service password-encryption
+username admin3 secret admin3
+no ip domain-lookup
+no cdp run
+ip domain-name cisco.com
+crypto key generate rsa general-keys modulus 1024
+
+line con 0
+password cisco
+logging synchronous
+exec-timeout 3 50
+login
+
+line vty 0 4
+password cisco
+exec-timeout 3 50
+transport input ssh
+login local
+
+
+int g0/0/0
+ ip add 172.16.100.145 255.255.255.240
+ no sh
+
+int g0/0/1
+ ip add 172.16.100.129  255.255.255.240
+ no sh
+
+int s0/1/0
+ ip add 172.16.100.230 255.255.255.252
+ no sh  
+
+
+dhcp(172.16.100.144)
+--------------------
+enable
+config t
+ip dhcp excluded-address 172.16.100.151 172.16.100.157
+
+ip dhcp pool Wiered-LAN1
+ network 172.16.100.144 255.255.255.240
+ default-router 172.16.100.145
+
+ip dhcp pool Wiered-LAN2
+ network 172.16.100.128 255.255.255.240
+ default-router 172.16.100.129
+
+
+-------------
+Radius server
+-------------
+ conf t
+
+aaa new-model
+
+aaa authentication login default group radius local
+
+username admin secret admin12345
+radius server Raduis
+ 
+add ipv4 172.16.100.2 auth-port 1812 
+ 
+key radiuspass
+
+line console 0
+
+ login authentication default
+
+ exit
+ 
+service timestamps log datetime msec
+
+-------------
+#ospf authen#
+-------------
+conf t
+int s0/1/0
+ ip ospf message-digest-key 1 md5 MD5pa55
+
+
+---------
+#Routing#
+---------
+router ospf 10
+router-id 3.3.3.3
+network 172.16.100.128 0.0.0.15 area 0
+network 172.16.100.144 0.0.0.15 area 0
+network 172.16.100.228 0.0.0.3 area 0
+area 0 authentication message-digest
+
+
+
+
+
+
+
+=================================
+sw3
+----
+hostname sw3
+banner motd # Hello #
+enable secret cisco
+service password-encryption
+
+line con 0
+ password cisco
+ exec-timeout 3 50
+ logging synchronous
+ login 
+
+logging 172.16.100.4
+
+ntp server 172.16.100.4
+service timestamps log datetime msec
+ exit
+
+
+
+sw4
+----
+hostname sw4
+banner motd # Hello #
+enable secret cisco
+service password-encryption
+
+line con 0
+ password cisco
+ exec-timeout 3 50
+ logging synchronous
+ login 
+
+logging 172.16.100.4
+
+ntp server 172.16.100.4
+service timestamps log datetime msec
+ exit
+
+----------------------------
+------------
+802.1x / sw3
+------------
+int vlan 1
+ no shut
+ ip address 172.16.100.158 255.255.255.240
+ ip default-gateway 172.16.100.145
+
+int range f0/1
+ switchport mode access
+ switchport access vlan 1
+ ex
+
+client name : sw-3
+client ip : 172.16.100.158
+secret : cisco
+raduis 
+port :1812
+
+username : ROOT
+pass : Raduispass
+
+
+pc-5
+
+enable 802.1x 
+username : Root
+pass :pass
+ 
+
+conf t
+aaa new-model
+aaa authentication dot1x default group radius
+dot1x system-auth-control
+`
+radius server RADIUS-SERVER
+ add ipv4 172.16.100.2 auth-port 1812 
+ key cisco
+
+interface f0/1
+ switchport mode access 
+ authentication port-control auto
+ dot1x pae authenticator
+ end
+
+show dot1x all statistics
+
+
+-----------
+Zone-policy
+-----------
+Zone security INSIDE
+Zone security OUTSIDE
+Zone security DMZ
+
+class-map type inspect match-any class_in_to_DMZ
+ match protocol ssh
+ match protocol https
+ match protocol http
+
+
+class-map type inspect match-any class_out_to_DMz
+ match protocol smtp
+ match protocol https
+ match protocol icmp
+
+access-list 111 permit ip 172.16.100.144 0.0.0.15 any 
+
+class-map type inspect match-any class_in_to_out
+ match access-group 111
+
+
+policy-map type inspect p_in_to_DMZ
+ class type inspect class_in_to_DMZ
+ inspect
+policy-map type inspect p_in_to_out
+ class type inspect class_in_to_out
+ inspect
+policy-map type inspect p_out_to_DMz
+ class type inspect class_out_to_DMz
+ inspect
+ 
+zone-pair security pair_in_to_DMZ source INSIDE dest DMZ
+ service-policy type inspect p_in_to_DMZ
+
+zone-pair security pair_in_to_OUT source INSIDE dest OUTSIDE
+ service-policy type inspect p_in_to_out
+
+zone-pair security pair_OUT_to_DMZ source OUTSIDE dest DMZ
+ service-policy type inspect p_out_to_DMz
+
+int g0/0/0
+zone-member security INSIDE
+
+int g0/0/1
+zone-member security DMZ
+
+int s0/1/0
+zone-member security OUTSIDE
+
+
