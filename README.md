@@ -1,7 +1,7 @@
 # Multi-Vendor-Network-Security-Polices
  
 ### Project in Packet Tracer from scratch
-apply All Networks  :
+Apply All Networks  :
    ip address 172.16.100.0/24
 - Point to point    /30
 - ip interface   /28
